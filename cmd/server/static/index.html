@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Order Packs Calculator</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.5;
+      }
+
+      body {
+        margin: 0;
+        background: #f6f7fb;
+        color: #172033;
+      }
+
+      main {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(2rem, 5vw, 3.5rem);
+      }
+
+      p {
+        color: #4d5a70;
+      }
+
+      section {
+        margin-top: 28px;
+        padding: 24px;
+        border: 1px solid #dfe4ef;
+        border-radius: 16px;
+        background: white;
+        box-shadow: 0 8px 24px rgb(20 32 54 / 8%);
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 700;
+      }
+
+      input {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid #b9c2d3;
+        border-radius: 10px;
+        font-size: 1rem;
+      }
+
+      button {
+        margin-top: 14px;
+        padding: 12px 18px;
+        border: 0;
+        border-radius: 10px;
+        background: #1f8f4d;
+        color: white;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #18723e;
+      }
+
+      .hint {
+        margin-top: 8px;
+        font-size: 0.95rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 20px;
+      }
+
+      .status {
+        min-height: 24px;
+        margin-top: 12px;
+        font-weight: 700;
+      }
+
+      .error {
+        color: #b42318;
+      }
+
+      .success {
+        color: #067647;
+      }
+
+      table {
+        width: 100%;
+        margin-top: 16px;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 12px;
+        border-bottom: 1px solid #e3e8f2;
+        text-align: left;
+      }
+
+      th {
+        background: #f2f5fa;
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .metric {
+        padding: 14px;
+        border-radius: 12px;
+        background: #f2f5fa;
+      }
+
+      .metric span {
+        display: block;
+        color: #596579;
+        font-size: 0.9rem;
+      }
+
+      .metric strong {
+        font-size: 1.4rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Order Packs Calculator</h1>
+      <p>
+        Configure available pack sizes, then calculate the fewest items that can
+        be shipped for an order and the fewest packs for that shipped quantity.
+      </p>
+
+      <div class="grid">
+        <section>
+          <h2>Pack Sizes</h2>
+          <form id="pack-size-form">
+            <label for="pack-sizes">Available sizes</label>
+            <input id="pack-sizes" name="pack-sizes" placeholder="250, 500, 1000, 2000, 5000" />
+            <div class="hint">Use comma, space, or newline separated positive numbers.</div>
+            <button type="submit">Save pack sizes</button>
+            <div id="pack-size-status" class="status" aria-live="polite"></div>
+          </form>
+        </section>
+
+        <section>
+          <h2>Calculate Packs</h2>
+          <form id="calculate-form">
+            <label for="items">Items ordered</label>
+            <input id="items" name="items" type="number" min="0" step="1" placeholder="263" />
+            <button type="submit">Calculate</button>
+            <div id="calculate-status" class="status" aria-live="polite"></div>
+          </form>
+        </section>
+      </div>
+
+      <section>
+        <h2>Result</h2>
+        <div id="empty-result">No calculation yet.</div>
+        <div id="result" hidden>
+          <div class="summary">
+            <div class="metric">
+              <span>Items ordered</span>
+              <strong id="items-ordered"></strong>
+            </div>
+            <div class="metric">
+              <span>Items shipped</span>
+              <strong id="items-shipped"></strong>
+            </div>
+            <div class="metric">
+              <span>Total packs</span>
+              <strong id="total-packs"></strong>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Pack</th>
+                <th>Quantity</th>
+              </tr>
+            </thead>
+            <tbody id="packs-table"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const packSizeInput = document.querySelector("#pack-sizes");
+      const packSizeStatus = document.querySelector("#pack-size-status");
+      const calculateStatus = document.querySelector("#calculate-status");
+      const result = document.querySelector("#result");
+      const emptyResult = document.querySelector("#empty-result");
+
+      function parsePackSizes(value) {
+        return value
+          .split(/[,\s]+/)
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .map(Number);
+      }
+
+      function setStatus(element, message, type) {
+        element.textContent = message;
+        element.className = `status ${type || ""}`;
+      }
+
+      async function request(path, options) {
+        const response = await fetch(path, {
+          headers: { "Content-Type": "application/json" },
+          ...options,
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "Request failed");
+        }
+        return payload;
+      }
+
+      async function loadPackSizes() {
+        const payload = await request("/api/pack-sizes");
+        packSizeInput.value = payload.packSizes.join(", ");
+      }
+
+      document.querySelector("#pack-size-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+          const packSizes = parsePackSizes(packSizeInput.value);
+          const payload = await request("/api/pack-sizes", {
+            method: "PUT",
+            body: JSON.stringify({ packSizes }),
+          });
+          packSizeInput.value = payload.packSizes.join(", ");
+          setStatus(packSizeStatus, "Pack sizes saved.", "success");
+        } catch (error) {
+          setStatus(packSizeStatus, error.message, "error");
+        }
+      });
+
+      document.querySelector("#calculate-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+          const items = Number(document.querySelector("#items").value);
+          const payload = await request("/api/calculate", {
+            method: "POST",
+            body: JSON.stringify({ items }),
+          });
+          renderResult(payload);
+          setStatus(calculateStatus, "Calculation complete.", "success");
+        } catch (error) {
+          setStatus(calculateStatus, error.message, "error");
+        }
+      });
+
+      function renderResult(payload) {
+        emptyResult.hidden = true;
+        result.hidden = false;
+        document.querySelector("#items-ordered").textContent = payload.itemsOrdered;
+        document.querySelector("#items-shipped").textContent = payload.itemsShipped;
+        document.querySelector("#total-packs").textContent = payload.totalPacks;
+
+        const rows = payload.packs
+          .map((pack) => `<tr><td>${pack.packSize}</td><td>${pack.quantity}</td></tr>`)
+          .join("");
+        document.querySelector("#packs-table").innerHTML = rows || "<tr><td colspan=\"2\">No packs needed</td></tr>";
+      }
+
+      loadPackSizes().catch((error) => {
+        setStatus(packSizeStatus, error.message, "error");
+      });
+    </script>
+  </body>
+</html>
