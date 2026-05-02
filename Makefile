@@ -6,7 +6,7 @@ GOFLAGS := GO111MODULE=on
 DOCKER_IMAGE ?= $(APP_NAME)
 PORT ?= 8080
 
-.PHONY: help run test test-domain test-api fmt tidy build clean docker-test docker-build docker-run
+.PHONY: help run test test-domain test-api vet fmt tidy build clean docker-test docker-build docker-run
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -22,6 +22,9 @@ test-domain: ## Run domain package tests
 
 test-api: ## Run HTTP adapter tests
 	$(GOFLAGS) $(GO) test ./internal/interfaces/httpapi
+
+vet: ## Run Go vet
+	$(GOFLAGS) $(GO) vet ./...
 
 fmt: ## Format all Go files
 	$(GOFLAGS) $(GO) fmt ./...
