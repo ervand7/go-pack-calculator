@@ -47,11 +47,6 @@ func (p ShipmentPlanner) Plan(itemsOrdered int, packSizes []int) (ShipmentPlan, 
 
 	maxPack := sizes[len(sizes)-1]
 	limit := itemsOrdered + maxPack - 1
-	p.logger.Debug().
-		Int("max_pack_size", maxPack).
-		Int("search_limit", limit).
-		Msg("prepared dynamic programming search range")
-
 	minPacks := make([]int, limit+1)
 	previousPack := make([]int, limit+1)
 
@@ -83,10 +78,6 @@ func (p ShipmentPlanner) Plan(itemsOrdered int, packSizes []int) (ShipmentPlan, 
 		}
 	}
 	if itemsShipped == -1 {
-		p.logger.Error().
-			Int("items_ordered", itemsOrdered).
-			Int("search_limit", limit).
-			Msg("no reachable shipped total found")
 		return ShipmentPlan{}, fmt.Errorf("find reachable shipped total: %w", ErrNoPackSizes)
 	}
 
