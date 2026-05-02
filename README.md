@@ -21,6 +21,19 @@ Pack sizes are configurable at runtime through the API or UI and are persisted t
 - Unit and HTTP API tests
 - Dockerfile for containerized deployment
 
+## Architecture
+
+The project is organized with DDD-style boundaries:
+
+- `internal/domain/orderpacks`: core business language and rules. It owns pack-size validation, normalization, and the shipment-planning algorithm.
+- `internal/application/orderpacks`: use cases. It coordinates pack-size configuration and shipment calculation through a repository interface.
+- `internal/infrastructure/config`: typed environment configuration with defaults and validation.
+- `internal/infrastructure/persistence/packsize`: JSON-file persistence adapter for configurable pack sizes.
+- `internal/interfaces/httpapi`: HTTP adapter that maps requests/responses to application use cases.
+- `cmd/server`: composition root. It wires infrastructure, application services, domain services, HTTP routes, logging, and graceful shutdown.
+
+The domain package does not depend on HTTP or persistence details. The application package depends on a repository interface, while the JSON store implements that interface from the infrastructure layer.
+
 ## Run Locally
 
 ```bash
@@ -36,6 +49,10 @@ Optional environment variables:
 - `PORT`: server port, defaults to `8080`
 - `PACK_SIZES_FILE`: JSON persistence file, defaults to `data/pack_sizes.json`
 - `LOG_LEVEL`: logging level, defaults to `debug`; supported values include `debug`, `info`, `warn`, and `error`
+- `SHUTDOWN_TIMEOUT`: graceful shutdown timeout, defaults to `10s`
+- `READ_HEADER_TIMEOUT`: HTTP read-header timeout, defaults to `5s`
+
+Use `.env.example` as the deployment/configuration template. The app reads environment variables from the process environment; if you want local `.env` loading, run it through your shell or deployment tool.
 
 The server handles `SIGINT` and `SIGTERM` with graceful shutdown. It stops accepting new requests and gives in-flight requests up to 10 seconds to complete.
 

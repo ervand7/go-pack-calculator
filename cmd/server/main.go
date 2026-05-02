@@ -4,36 +4,43 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
-	"time"
 
 	"github.com/rs/zerolog"
 
-	"pack-calculator/internal/config"
-	"pack-calculator/internal/httpapi"
+	app "pack-calculator/internal/application/orderpacks"
+	domain "pack-calculator/internal/domain/orderpacks"
+	"pack-calculator/internal/infrastructure/config"
+	"pack-calculator/internal/infrastructure/persistence/packsize"
+	"pack-calculator/internal/interfaces/httpapi"
 )
 
 //go:embed static/index.html
 var indexHTML string
 
 func main() {
-	packSizesFile := getEnvOrDefault("PACK_SIZES_FILE", "data/pack_sizes.json")
-	port := getEnvOrDefault("PORT", "8080")
-	shutdownTimeout := 10 * time.Second
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
 
-	logger := newLogger()
+	logger := newLogger(cfg.LogLevel)
 	logger.Info().
-		Str("pack_sizes_file", packSizesFile).
-		Str("port", port).
-		Dur("shutdown_timeout", shutdownTimeout).
+		Str("pack_sizes_file", cfg.PackSizesFile).
+		Str("port", cfg.Port).
+		Str("log_level", cfg.LogLevel.String()).
+		Dur("shutdown_timeout", cfg.ShutdownTimeout).
+		Dur("read_header_timeout", cfg.ReadHeaderTimeout).
 		Msg("starting pack calculator")
 
-	store := config.NewStore(packSizesFile, logger)
-	router := httpapi.NewRouter(store, logger)
+	store := packsize.NewStore(cfg.PackSizesFile, logger)
+	planner := domain.NewShipmentPlanner(logger)
+	service := app.NewService(store, planner, logger)
+	router := httpapi.NewRouter(service, logger)
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			logger.Warn().Str("path", r.URL.Path).Msg("static route not found")
@@ -48,9 +55,9 @@ func main() {
 	})
 
 	server := &http.Server{
-		Addr:              ":" + port,
+		Addr:              ":" + cfg.Port,
 		Handler:           router,
-		ReadHeaderTimeout: 5 * time.Second,
+		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 	}
 
 	errCh := make(chan error, 1)
@@ -72,7 +79,7 @@ func main() {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 
 	logger.Info().Msg("graceful shutdown started")
@@ -87,21 +94,7 @@ func main() {
 	logger.Info().Msg("graceful shutdown completed")
 }
 
-func getEnvOrDefault(key, defaultVal string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultVal
-	}
-
-	return value
-}
-
-func newLogger() zerolog.Logger {
-	levelValue := strings.ToLower(getEnvOrDefault("LOG_LEVEL", "debug"))
-	level, err := zerolog.ParseLevel(levelValue)
-	if err != nil {
-		level = zerolog.DebugLevel
-	}
+func newLogger(level zerolog.Level) zerolog.Logger {
 	zerolog.SetGlobalLevel(level)
 
 	return zerolog.New(os.Stdout).

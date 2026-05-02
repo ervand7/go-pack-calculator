@@ -8,13 +8,25 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"pack-calculator/internal/calculator"
-	"pack-calculator/internal/config"
+	app "pack-calculator/internal/application/orderpacks"
+	domain "pack-calculator/internal/domain/orderpacks"
 )
 
 type calculateRequest struct {
 	Items        int `json:"items"`
 	ItemsOrdered int `json:"itemsOrdered"`
+}
+
+type calculateResponse struct {
+	ItemsOrdered int          `json:"itemsOrdered"`
+	ItemsShipped int          `json:"itemsShipped"`
+	TotalPacks   int          `json:"totalPacks"`
+	Packs        []allocation `json:"packs"`
+}
+
+type allocation struct {
+	PackSize int `json:"packSize"`
+	Quantity int `json:"quantity"`
 }
 
 type packSizesRequest struct {
@@ -25,20 +37,22 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
-func NewRouter(store *config.Store, logger zerolog.Logger) *http.ServeMux {
+// NewRouter registers HTTP routes for pack-size configuration and calculations.
+func NewRouter(service *app.Service, logger zerolog.Logger) *http.ServeMux {
 	logger = logger.With().Str("component", "http_api").Logger()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/pack-sizes", withRequestLogging(handlePackSizes(store, logger), logger))
-	mux.HandleFunc("/api/calculate", withRequestLogging(handleCalculate(store, logger), logger))
+	mux.HandleFunc("/api/pack-sizes", withRequestLogging(handlePackSizes(service, logger), logger))
+	mux.HandleFunc("/api/calculate", withRequestLogging(handleCalculate(service, logger), logger))
 	return mux
 }
 
-func handlePackSizes(store *config.Store, logger zerolog.Logger) http.HandlerFunc {
+// handlePackSizes exposes configured pack sizes for reads and updates.
+func handlePackSizes(service *app.Service, logger zerolog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug().Str("method", r.Method).Msg("handling pack sizes request")
 		switch r.Method {
 		case http.MethodGet:
-			packSizes, err := store.PackSizes()
+			packSizes, err := service.GetPackSizes(r.Context())
 			if err != nil {
 				logger.Error().Err(err).Msg("could not read pack sizes")
 				writeError(w, http.StatusInternalServerError, "could not read pack sizes", logger)
@@ -53,7 +67,7 @@ func handlePackSizes(store *config.Store, logger zerolog.Logger) http.HandlerFun
 				writeError(w, http.StatusBadRequest, "request body must be valid JSON", logger)
 				return
 			}
-			packSizes, err := store.SavePackSizes(req.PackSizes)
+			packSizes, err := service.UpdatePackSizes(r.Context(), req.PackSizes)
 			if err != nil {
 				writeValidationError(w, err, logger)
 				return
@@ -66,7 +80,8 @@ func handlePackSizes(store *config.Store, logger zerolog.Logger) http.HandlerFun
 	}
 }
 
-func handleCalculate(store *config.Store, logger zerolog.Logger) http.HandlerFunc {
+// handleCalculate calculates a shipment plan for the requested item count.
+func handleCalculate(service *app.Service, logger zerolog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			logger.Warn().Str("method", r.Method).Msg("method not allowed for calculate endpoint")
@@ -91,28 +106,40 @@ func handleCalculate(store *config.Store, logger zerolog.Logger) http.HandlerFun
 		}
 		logger.Info().Int("items_ordered", itemsOrdered).Msg("received calculation request")
 
-		packSizes, err := store.PackSizes()
-		if err != nil {
-			logger.Error().Err(err).Msg("could not read pack sizes for calculation")
-			writeError(w, http.StatusInternalServerError, "could not read pack sizes", logger)
-			return
-		}
-
-		result, err := calculator.CalculateWithLogger(itemsOrdered, packSizes, logger.With().Str("component", "calculator").Logger())
+		plan, err := service.Calculate(r.Context(), itemsOrdered)
 		if err != nil {
 			writeValidationError(w, err, logger)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, result, logger)
+		writeJSON(w, http.StatusOK, toCalculateResponse(plan), logger)
 	}
 }
 
+// toCalculateResponse maps the domain shipment plan to the public API shape.
+func toCalculateResponse(plan domain.ShipmentPlan) calculateResponse {
+	packs := make([]allocation, 0, len(plan.Packs))
+	for _, pack := range plan.Packs {
+		packs = append(packs, allocation{
+			PackSize: pack.PackSize,
+			Quantity: pack.Quantity,
+		})
+	}
+
+	return calculateResponse{
+		ItemsOrdered: plan.ItemsOrdered,
+		ItemsShipped: plan.ItemsShipped,
+		TotalPacks:   plan.TotalPacks,
+		Packs:        packs,
+	}
+}
+
+// writeValidationError maps known domain validation errors to HTTP 400 responses.
 func writeValidationError(w http.ResponseWriter, err error, logger zerolog.Logger) {
 	switch {
-	case errors.Is(err, calculator.ErrInvalidItemCount),
-		errors.Is(err, calculator.ErrNoPackSizes),
-		errors.Is(err, calculator.ErrInvalidPackSize):
+	case errors.Is(err, domain.ErrInvalidItemCount),
+		errors.Is(err, domain.ErrNoPackSizes),
+		errors.Is(err, domain.ErrInvalidPackSize):
 		logger.Warn().Err(err).Msg("validation error")
 		writeError(w, http.StatusBadRequest, err.Error(), logger)
 	default:
@@ -121,6 +148,7 @@ func writeValidationError(w http.ResponseWriter, err error, logger zerolog.Logge
 	}
 }
 
+// writeJSON sends a JSON response and logs encoding failures.
 func writeJSON(w http.ResponseWriter, status int, payload any, logger zerolog.Logger) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -129,6 +157,7 @@ func writeJSON(w http.ResponseWriter, status int, payload any, logger zerolog.Lo
 	}
 }
 
+// writeError sends the standard API error response.
 func writeError(w http.ResponseWriter, status int, message string, logger zerolog.Logger) {
 	writeJSON(w, status, errorResponse{Error: message}, logger)
 }
@@ -138,11 +167,13 @@ type statusRecorder struct {
 	status int
 }
 
+// WriteHeader records the status code before delegating to the response writer.
 func (r *statusRecorder) WriteHeader(status int) {
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
 }
 
+// withRequestLogging logs each request with status and duration.
 func withRequestLogging(next http.HandlerFunc, logger zerolog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

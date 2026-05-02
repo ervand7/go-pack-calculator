@@ -1,6 +1,7 @@
-package config
+package packsize
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -9,10 +10,8 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"pack-calculator/internal/calculator"
+	domain "pack-calculator/internal/domain/orderpacks"
 )
-
-var DefaultPackSizes = []int{250, 500, 1000, 2000, 5000}
 
 type Store struct {
 	path   string
@@ -31,15 +30,22 @@ func NewStore(path string, logger zerolog.Logger) *Store {
 	}
 }
 
-func (s *Store) PackSizes() ([]int, error) {
+// List returns configured pack sizes, falling back to domain defaults when no
+// file exists.
+func (s *Store) List(ctx context.Context) ([]int, error) {
+	if err := ctx.Err(); err != nil {
+		s.logger.Warn().Err(err).Msg("context canceled before reading pack sizes")
+		return nil, err
+	}
+
 	s.logger.Debug().Msg("reading pack sizes")
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	data, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {
-		s.logger.Info().Ints("pack_sizes", DefaultPackSizes).Msg("pack sizes file missing, using defaults")
-		return append([]int(nil), DefaultPackSizes...), nil
+		s.logger.Info().Ints("pack_sizes", domain.DefaultPackSizes).Msg("pack sizes file missing, using defaults")
+		return append([]int(nil), domain.DefaultPackSizes...), nil
 	}
 	if err != nil {
 		s.logger.Error().Err(err).Msg("failed to read pack sizes file")
@@ -52,7 +58,7 @@ func (s *Store) PackSizes() ([]int, error) {
 		return nil, err
 	}
 
-	normalized, err := calculator.NormalizePackSizes(stored.PackSizes)
+	normalized, err := domain.NormalizePackSizes(stored.PackSizes)
 	if err != nil {
 		s.logger.Error().Err(err).Ints("pack_sizes", stored.PackSizes).Msg("stored pack sizes are invalid")
 		return nil, err
@@ -62,9 +68,15 @@ func (s *Store) PackSizes() ([]int, error) {
 	return normalized, nil
 }
 
-func (s *Store) SavePackSizes(packSizes []int) ([]int, error) {
+// Save normalizes and persists pack sizes to the configured JSON file.
+func (s *Store) Save(ctx context.Context, packSizes []int) ([]int, error) {
+	if err := ctx.Err(); err != nil {
+		s.logger.Warn().Err(err).Msg("context canceled before saving pack sizes")
+		return nil, err
+	}
+
 	s.logger.Info().Ints("requested_pack_sizes", packSizes).Msg("saving pack sizes")
-	normalized, err := calculator.NormalizePackSizes(packSizes)
+	normalized, err := domain.NormalizePackSizes(packSizes)
 	if err != nil {
 		s.logger.Warn().Err(err).Ints("requested_pack_sizes", packSizes).Msg("rejected invalid pack sizes")
 		return nil, err
