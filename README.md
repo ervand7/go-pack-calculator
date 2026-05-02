@@ -12,7 +12,7 @@ Pack sizes are configurable at runtime through the API or UI and are persisted t
 
 ## Features
 
-- Go API using only the standard library
+- Go HTTP API
 - Browser UI for changing pack sizes and calculating orders
 - Runtime configurable pack sizes
 - JSON persistence for pack-size configuration
