@@ -6,7 +6,7 @@ GOFLAGS := GO111MODULE=on
 DOCKER_IMAGE ?= $(APP_NAME)
 PORT ?= 8080
 
-.PHONY: help run test test-domain test-api fmt tidy build clean docker-build docker-run
+.PHONY: help run test test-domain test-api fmt tidy build clean docker-test docker-build docker-run
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -38,6 +38,9 @@ clean: ## Remove build artifacts
 
 docker-build: ## Build Docker image
 	docker build -t $(DOCKER_IMAGE) .
+
+docker-test: ## Run tests in Docker build stage
+	docker build --target test -t $(DOCKER_IMAGE):test .
 
 docker-run: ## Run Docker image on PORT
 	docker run --rm -p $(PORT):8080 $(DOCKER_IMAGE)
