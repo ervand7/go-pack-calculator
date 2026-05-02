@@ -10,6 +10,8 @@ The calculation follows the rules from the challenge in priority order:
 
 Pack sizes are configurable at runtime through the API or UI and are persisted to a JSON file.
 
+Public repository: [github.com/ervand7/go-pack-calculator](https://github.com/ervand7/go-pack-calculator)
+
 ## Features
 
 - Go HTTP API
@@ -19,7 +21,7 @@ Pack sizes are configurable at runtime through the API or UI and are persisted t
 - Structured logs with `zerolog`
 - Graceful shutdown on `SIGINT` and `SIGTERM`
 - Unit and HTTP API tests
-- Dockerfile for containerized deployment
+- Optimized non-root distroless Docker image for containerized deployment
 
 ## Architecture
 
@@ -48,7 +50,7 @@ Optional environment variables:
 
 - `PORT`: server port, defaults to `8080`
 - `PACK_SIZES_FILE`: JSON persistence file, defaults to `data/pack_sizes.json`
-- `LOG_LEVEL`: logging level, defaults to `debug`; supported values include `debug`, `info`, `warn`, and `error`
+- `LOG_LEVEL`: logging level, defaults to `debug` locally; the Docker image sets `info` by default. Supported values include `debug`, `info`, `warn`, and `error`.
 - `SHUTDOWN_TIMEOUT`: graceful shutdown timeout, defaults to `10s`
 - `READ_HEADER_TIMEOUT`: HTTP read-header timeout, defaults to `5s`
 
@@ -56,10 +58,36 @@ Use `.env.example` as the deployment/configuration template. The app reads envir
 
 The server handles `SIGINT` and `SIGTERM` with graceful shutdown. It stops accepting new requests and gives in-flight requests up to 10 seconds to complete.
 
+## Make Commands
+
+```bash
+make help
+```
+
+Common commands:
+
+- `make run`: run the HTTP server locally
+- `make test`: run all tests with `go test ./...`
+- `make vet`: run static checks with `go vet ./...`
+- `make fmt`: format Go code
+- `make tidy`: tidy Go module files
+- `make build`: build the server binary into `bin/`
+- `make clean`: remove build artifacts
+- `make docker-test`: run tests in the Docker test stage
+- `make docker-build`: build the Docker image
+- `make docker-run`: run the Docker image locally
+
 ## Run Tests
 
 ```bash
 go test ./...
+```
+
+Or with Make:
+
+```bash
+make test
+make vet
 ```
 
 The tests include the challenge examples and the custom edge case:
@@ -72,11 +100,19 @@ Expected output: 23 x 2, 31 x 7, 53 x 9429
 
 ## Docker
 
+The Dockerfile uses a multi-stage build, an optimized static Go binary, and a non-root distroless runtime image.
+
 Build and run:
 
 ```bash
 docker build -t pack-calculator .
 docker run --rm -p 8080:8080 pack-calculator
+```
+
+Run tests inside Docker:
+
+```bash
+make docker-test
 ```
 
 To persist pack-size changes outside the container:
@@ -113,6 +149,8 @@ Content-Type: application/json
   "packSizes": [23, 31, 53]
 }
 ```
+
+`POST /api/pack-sizes` is also supported with the same request body.
 
 Pack sizes must be positive integers. Duplicates are removed and sizes are stored sorted.
 
