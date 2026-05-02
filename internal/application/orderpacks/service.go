@@ -2,6 +2,7 @@ package orderpacks
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog"
 
@@ -32,8 +33,7 @@ func (s *Service) GetPackSizes(ctx context.Context) ([]int, error) {
 
 	packSizes, err := s.repository.List(ctx)
 	if err != nil {
-		s.logger.Error().Err(err).Msg("failed to get configured pack sizes")
-		return nil, err
+		return nil, fmt.Errorf("get configured pack sizes: %w", err)
 	}
 
 	s.logger.Info().Ints("pack_sizes", packSizes).Msg("got configured pack sizes")
@@ -45,14 +45,12 @@ func (s *Service) UpdatePackSizes(ctx context.Context, packSizes []int) ([]int, 
 
 	normalized, err := domain.NormalizePackSizes(packSizes)
 	if err != nil {
-		s.logger.Warn().Err(err).Ints("requested_pack_sizes", packSizes).Msg("rejected invalid pack sizes")
-		return nil, err
+		return nil, fmt.Errorf("normalize requested pack sizes: %w", err)
 	}
 
 	saved, err := s.repository.Save(ctx, normalized)
 	if err != nil {
-		s.logger.Error().Err(err).Ints("pack_sizes", normalized).Msg("failed to save configured pack sizes")
-		return nil, err
+		return nil, fmt.Errorf("save configured pack sizes: %w", err)
 	}
 
 	s.logger.Info().Ints("pack_sizes", saved).Msg("updated configured pack sizes")
@@ -64,14 +62,12 @@ func (s *Service) Calculate(ctx context.Context, itemsOrdered int) (domain.Shipm
 
 	packSizes, err := s.repository.List(ctx)
 	if err != nil {
-		s.logger.Error().Err(err).Msg("failed to get pack sizes for shipment calculation")
-		return domain.ShipmentPlan{}, err
+		return domain.ShipmentPlan{}, fmt.Errorf("get pack sizes for shipment calculation: %w", err)
 	}
 
 	plan, err := s.planner.Plan(itemsOrdered, packSizes)
 	if err != nil {
-		s.logger.Warn().Err(err).Int("items_ordered", itemsOrdered).Ints("pack_sizes", packSizes).Msg("shipment calculation rejected")
-		return domain.ShipmentPlan{}, err
+		return domain.ShipmentPlan{}, fmt.Errorf("calculate shipment plan: %w", err)
 	}
 
 	s.logger.Info().

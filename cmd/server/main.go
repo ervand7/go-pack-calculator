@@ -43,7 +43,7 @@ func main() {
 	router := httpapi.NewRouter(service, logger)
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
-			logger.Warn().Str("path", r.URL.Path).Msg("static route not found")
+			logger.Error().Str("path", r.URL.Path).Msg("static route not found")
 			http.NotFound(w, r)
 			return
 		}

@@ -1,6 +1,7 @@
 package orderpacks
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/rs/zerolog"
@@ -25,14 +26,12 @@ func (p ShipmentPlanner) Plan(itemsOrdered int, packSizes []int) (ShipmentPlan, 
 		Msg("starting shipment planning")
 
 	if itemsOrdered < 0 {
-		p.logger.Warn().Int("items_ordered", itemsOrdered).Err(ErrInvalidItemCount).Msg("invalid item count")
-		return ShipmentPlan{}, ErrInvalidItemCount
+		return ShipmentPlan{}, fmt.Errorf("validate item count: %w", ErrInvalidItemCount)
 	}
 
 	sizes, err := NormalizePackSizes(packSizes)
 	if err != nil {
-		p.logger.Warn().Ints("pack_sizes", packSizes).Err(err).Msg("invalid pack sizes")
-		return ShipmentPlan{}, err
+		return ShipmentPlan{}, fmt.Errorf("normalize pack sizes: %w", err)
 	}
 	p.logger.Debug().Ints("normalized_pack_sizes", sizes).Msg("normalized pack sizes")
 
@@ -88,7 +87,7 @@ func (p ShipmentPlanner) Plan(itemsOrdered int, packSizes []int) (ShipmentPlan, 
 			Int("items_ordered", itemsOrdered).
 			Int("search_limit", limit).
 			Msg("no reachable shipped total found")
-		return ShipmentPlan{}, ErrNoPackSizes
+		return ShipmentPlan{}, fmt.Errorf("find reachable shipped total: %w", ErrNoPackSizes)
 	}
 
 	counts := map[int]int{}

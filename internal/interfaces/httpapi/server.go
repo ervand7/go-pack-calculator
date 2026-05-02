@@ -51,11 +51,12 @@ func handlePackSizes(service *app.Service, logger zerolog.Logger) http.HandlerFu
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug().Str("method", r.Method).Msg("handling pack sizes request")
 		switch r.Method {
+
 		case http.MethodGet:
 			packSizes, err := service.GetPackSizes(r.Context())
 			if err != nil {
 				logger.Error().Err(err).Msg("could not read pack sizes")
-				writeError(w, http.StatusInternalServerError, "could not read pack sizes", logger)
+				writeJSON(w, http.StatusInternalServerError, "could not read pack sizes", logger)
 				return
 			}
 			logger.Info().Ints("pack_sizes", packSizes).Msg("returning pack sizes")
@@ -63,19 +64,20 @@ func handlePackSizes(service *app.Service, logger zerolog.Logger) http.HandlerFu
 		case http.MethodPut, http.MethodPost:
 			var req packSizesRequest
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				logger.Warn().Err(err).Msg("invalid pack sizes JSON request")
-				writeError(w, http.StatusBadRequest, "request body must be valid JSON", logger)
+				logger.Error().Err(err).Msg("invalid pack sizes JSON request")
+				writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid pack sizes JSON request"}, logger)
 				return
 			}
 			packSizes, err := service.UpdatePackSizes(r.Context(), req.PackSizes)
 			if err != nil {
+				logger.Error().Err(err).Msg("update pack sizes")
 				writeValidationError(w, err, logger)
 				return
 			}
 			writeJSON(w, http.StatusOK, packSizesRequest{PackSizes: packSizes}, logger)
 		default:
-			logger.Warn().Str("method", r.Method).Msg("method not allowed for pack sizes endpoint")
-			writeError(w, http.StatusMethodNotAllowed, "method not allowed", logger)
+			logger.Error().Str("method", r.Method).Msg("method not allowed for pack sizes endpoint")
+			writeJSON(w, http.StatusMethodNotAllowed, errorResponse{Error: "method not allowed for pack sizes endpoint"}, logger)
 		}
 	}
 }
@@ -84,15 +86,17 @@ func handlePackSizes(service *app.Service, logger zerolog.Logger) http.HandlerFu
 func handleCalculate(service *app.Service, logger zerolog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			logger.Warn().Str("method", r.Method).Msg("method not allowed for calculate endpoint")
-			writeError(w, http.StatusMethodNotAllowed, "method not allowed", logger)
+			logger.Error().Str("method", r.Method).Msg("method not allowed for calculate endpoint")
+			writeJSON(w, http.StatusMethodNotAllowed, errorResponse{Error: "method not allowed"}, logger)
+
 			return
 		}
 
 		var req calculateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			logger.Warn().Err(err).Msg("invalid calculate JSON request")
-			writeError(w, http.StatusBadRequest, "request body must be valid JSON", logger)
+			logger.Error().Err(err).Msg("invalid calculate JSON request")
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid calculate JSON request"}, logger)
+
 			return
 		}
 
@@ -108,6 +112,7 @@ func handleCalculate(service *app.Service, logger zerolog.Logger) http.HandlerFu
 
 		plan, err := service.Calculate(r.Context(), itemsOrdered)
 		if err != nil {
+			logger.Error().Err(err).Msg("calculate")
 			writeValidationError(w, err, logger)
 			return
 		}
@@ -140,11 +145,10 @@ func writeValidationError(w http.ResponseWriter, err error, logger zerolog.Logge
 	case errors.Is(err, domain.ErrInvalidItemCount),
 		errors.Is(err, domain.ErrNoPackSizes),
 		errors.Is(err, domain.ErrInvalidPackSize):
-		logger.Warn().Err(err).Msg("validation error")
-		writeError(w, http.StatusBadRequest, err.Error(), logger)
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()}, logger)
+
 	default:
-		logger.Error().Err(err).Msg("unexpected server error")
-		writeError(w, http.StatusInternalServerError, "unexpected server error", logger)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "unexpected server error"}, logger)
 	}
 }
 
@@ -155,11 +159,6 @@ func writeJSON(w http.ResponseWriter, status int, payload any, logger zerolog.Lo
 	if err := json.NewEncoder(w).Encode(payload); err != nil {
 		logger.Error().Err(err).Int("status", status).Msg("failed to write JSON response")
 	}
-}
-
-// writeError sends the standard API error response.
-func writeError(w http.ResponseWriter, status int, message string, logger zerolog.Logger) {
-	writeJSON(w, status, errorResponse{Error: message}, logger)
 }
 
 type statusRecorder struct {

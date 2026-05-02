@@ -157,7 +157,7 @@ func TestCalculateRejectsMalformedJSON(t *testing.T) {
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
-	assertErrorResponse(t, response, http.StatusBadRequest, "request body must be valid JSON")
+	assertErrorResponse(t, response, http.StatusBadRequest, "invalid calculate JSON request")
 }
 
 func TestPackSizesRejectMalformedJSON(t *testing.T) {
@@ -168,7 +168,7 @@ func TestPackSizesRejectMalformedJSON(t *testing.T) {
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
-	assertErrorResponse(t, response, http.StatusBadRequest, "request body must be valid JSON")
+	assertErrorResponse(t, response, http.StatusBadRequest, "invalid pack sizes JSON request")
 }
 
 func TestCalculateRejectsUnsupportedMethod(t *testing.T) {
@@ -190,7 +190,7 @@ func TestPackSizesRejectUnsupportedMethod(t *testing.T) {
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
-	assertErrorResponse(t, response, http.StatusMethodNotAllowed, "method not allowed")
+	assertErrorResponse(t, response, http.StatusMethodNotAllowed, "method not allowed for pack sizes endpoint")
 }
 
 func TestToCalculateResponseMapsDomainPlan(t *testing.T) {
