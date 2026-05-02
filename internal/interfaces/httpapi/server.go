@@ -13,8 +13,7 @@ import (
 )
 
 type calculateRequest struct {
-	Items        int `json:"items"`
-	ItemsOrdered int `json:"itemsOrdered"`
+	Items int `json:"items"`
 }
 
 type calculateResponse struct {
@@ -59,9 +58,8 @@ func handlePackSizes(service *app.Service, logger zerolog.Logger) http.HandlerFu
 				writeJSON(w, http.StatusInternalServerError, "could not read pack sizes", logger)
 				return
 			}
-			logger.Info().Ints("pack_sizes", packSizes).Msg("returning pack sizes")
 			writeJSON(w, http.StatusOK, packSizesRequest{PackSizes: packSizes}, logger)
-		case http.MethodPut, http.MethodPost:
+		case http.MethodPut:
 			var req packSizesRequest
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				logger.Error().Err(err).Msg("invalid pack sizes JSON request")
@@ -100,17 +98,7 @@ func handleCalculate(service *app.Service, logger zerolog.Logger) http.HandlerFu
 			return
 		}
 
-		itemsOrdered := req.Items
-		if req.ItemsOrdered != 0 {
-			itemsOrdered = req.ItemsOrdered
-			logger.Debug().
-				Int("items", req.Items).
-				Int("items_ordered", req.ItemsOrdered).
-				Msg("using itemsOrdered request field")
-		}
-		logger.Info().Int("items_ordered", itemsOrdered).Msg("received calculation request")
-
-		plan, err := service.Calculate(r.Context(), itemsOrdered)
+		plan, err := service.Calculate(r.Context(), req.Items)
 		if err != nil {
 			logger.Error().Err(err).Msg("calculate")
 			writeValidationError(w, err, logger)

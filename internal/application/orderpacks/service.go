@@ -36,12 +36,12 @@ func (s *Service) GetPackSizes(ctx context.Context) ([]int, error) {
 		return nil, fmt.Errorf("get configured pack sizes: %w", err)
 	}
 
-	s.logger.Info().Ints("pack_sizes", packSizes).Msg("got configured pack sizes")
+	s.logger.Debug().Ints("pack_sizes", packSizes).Msg("got configured pack sizes")
 	return packSizes, nil
 }
 
 func (s *Service) UpdatePackSizes(ctx context.Context, packSizes []int) ([]int, error) {
-	s.logger.Info().Ints("requested_pack_sizes", packSizes).Msg("updating configured pack sizes")
+	s.logger.Debug().Ints("requested_pack_sizes", packSizes).Msg("updating configured pack sizes")
 
 	normalized, err := domain.NormalizePackSizes(packSizes)
 	if err != nil {
@@ -53,12 +53,12 @@ func (s *Service) UpdatePackSizes(ctx context.Context, packSizes []int) ([]int, 
 		return nil, fmt.Errorf("save configured pack sizes: %w", err)
 	}
 
-	s.logger.Info().Ints("pack_sizes", saved).Msg("updated configured pack sizes")
+	s.logger.Debug().Ints("pack_sizes", saved).Msg("updated configured pack sizes")
 	return saved, nil
 }
 
 func (s *Service) Calculate(ctx context.Context, itemsOrdered int) (domain.ShipmentPlan, error) {
-	s.logger.Info().Int("items_ordered", itemsOrdered).Msg("calculating shipment plan")
+	s.logger.Debug().Int("items_ordered", itemsOrdered).Msg("calculating shipment plan")
 
 	packSizes, err := s.repository.List(ctx)
 	if err != nil {
@@ -70,7 +70,7 @@ func (s *Service) Calculate(ctx context.Context, itemsOrdered int) (domain.Shipm
 		return domain.ShipmentPlan{}, fmt.Errorf("calculate shipment plan: %w", err)
 	}
 
-	s.logger.Info().
+	s.logger.Debug().
 		Int("items_ordered", plan.ItemsOrdered).
 		Int("items_shipped", plan.ItemsShipped).
 		Int("total_packs", plan.TotalPacks).

@@ -75,29 +75,6 @@ func TestGetPackSizesReturnsDefaults(t *testing.T) {
 	}
 }
 
-func TestPackSizesCanBeUpdatedWithPost(t *testing.T) {
-	service := newTestService(t)
-	router := NewRouter(service, zerolog.Nop())
-
-	request := httptest.NewRequest(http.MethodPost, "/api/pack-sizes", bytes.NewBufferString(`{"packSizes":[100,50,100]}`))
-	response := httptest.NewRecorder()
-	router.ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
-	}
-
-	var result packSizesRequest
-	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-
-	want := []int{50, 100}
-	if !reflect.DeepEqual(result.PackSizes, want) {
-		t.Fatalf("PackSizes = %v, want %v", result.PackSizes, want)
-	}
-}
-
 func TestCalculateRejectsInvalidItems(t *testing.T) {
 	service := newTestService(t)
 	router := NewRouter(service, zerolog.Nop())
@@ -121,31 +98,6 @@ func TestPackSizesRejectInvalidSizes(t *testing.T) {
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
-	}
-}
-
-func TestCalculateUsesItemsOrderedWhenProvided(t *testing.T) {
-	service := newTestService(t)
-	router := NewRouter(service, zerolog.Nop())
-
-	request := httptest.NewRequest(http.MethodPost, "/api/calculate", bytes.NewBufferString(`{"items":1,"itemsOrdered":251}`))
-	response := httptest.NewRecorder()
-	router.ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
-	}
-
-	var result calculateResponse
-	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-
-	if result.ItemsOrdered != 251 {
-		t.Fatalf("ItemsOrdered = %d, want 251", result.ItemsOrdered)
-	}
-	if result.ItemsShipped != 500 {
-		t.Fatalf("ItemsShipped = %d, want 500", result.ItemsShipped)
 	}
 }
 

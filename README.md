@@ -12,6 +12,8 @@ Pack sizes are configurable at runtime through the API or UI and are persisted t
 
 Public repository: [github.com/ervand7/go-pack-calculator](https://github.com/ervand7/go-pack-calculator)
 
+Live deployed application: [go-pack-calculator-5x6b.onrender.com](https://go-pack-calculator-5x6b.onrender.com)
+
 ## Features
 
 - Go HTTP API
@@ -149,8 +151,6 @@ Content-Type: application/json
   "packSizes": [23, 31, 53]
 }
 ```
-
-`POST /api/pack-sizes` is also supported with the same request body.
 
 Pack sizes must be positive integers. Duplicates are removed and sizes are stored sorted.
 
