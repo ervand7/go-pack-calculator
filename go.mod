@@ -1,6 +1,6 @@
 module pack-calculator
 
-go 1.18
+go 1.24
 
 require github.com/rs/zerolog v1.30.0
 

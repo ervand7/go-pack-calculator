@@ -93,5 +93,5 @@ func (s *Store) Save(ctx context.Context, packSizes []int) ([]int, error) {
 	}
 
 	s.logger.Info().Ints("pack_sizes", normalized).Msg("saved pack sizes")
-	return append([]int(nil), normalized...), nil
+	return normalized, nil
 }

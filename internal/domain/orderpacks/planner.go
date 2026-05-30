@@ -102,7 +102,7 @@ func (p ShipmentPlanner) Plan(itemsOrdered int, packSizes []int) (ShipmentPlan, 
 		Packs:        packs,
 	}
 
-	p.logger.Info().
+	p.logger.Debug().
 		Int("items_ordered", plan.ItemsOrdered).
 		Int("items_shipped", plan.ItemsShipped).
 		Int("extra_items", plan.ItemsShipped-plan.ItemsOrdered).
